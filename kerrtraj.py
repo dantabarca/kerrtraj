@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 from scipy.integrate import odeint
 import sympy as sym
@@ -46,13 +47,13 @@ class EquationsOfMotions(Metric):
 
     # additional variables
     pt, pr, pth, pph = sym.symbols('pt pr pth pph')
-    mu = sym.symbols('mu')
+
     # constants of motion
     L, E, Q = sym.symbols('L E Q')
     # utility expressions
-    TH = Q - (sym.cos(th)**2)*(Metric.a ** 2 * (mu ** 2 - E ** 2) + (sym.sin(th) ** (-2)) * (L ** 2))
+    TH = Q - (sym.cos(th)**2)*(Metric.a ** 2 * (1 - E ** 2) + (sym.sin(th) ** (-2)) * (L ** 2))
     R = ((E * (r ** 2 + Metric.a ** 2) - Metric.a * L) ** 2 -
-         Metric.Delta * ((mu ** 2) * (r ** 2) + (L - Metric.a * E) ** 2 + Q))
+         Metric.Delta * ((r ** 2) + (L - Metric.a * E) ** 2 + Q))
 
     # time derivatives
     dtdtau = 1 / (2 * Metric.Delta * Metric.Sigma) * sym.diff(R + Metric.Delta * TH, E)
@@ -76,7 +77,6 @@ class EquationsOfMotions(Metric):
         gthth = self.mygthth(r, th, ph)
         gphph = self.mygphph(r, th, ph)
         ut = 1. / np.sqrt(-gtt - 2. * gtph * vph - gphph * vph * vph - grr * vr * vr - gthth * vth * vth)
-        # TODO fix ut<0
         return ut, ut * vr, ut * vth, ut * vph
 
     def lower_4vel(self, r, th, ph, ut, ur, uth, uph):
@@ -93,16 +93,24 @@ class EquationsOfMotions(Metric):
 
         return u_t, u_r, u_th, u_ph
 
-    def initialize(self, r0, th0, ph0, vr, vth, vph, mu=1.):
+    def initialize(self, r0, th0, ph0, vr, vth, vph):
         ut, ur, uth, uph = self.convert_3to4vel(r0, th0, ph0, vr, vth, vph)
         u_t, u_r, u_th, u_ph = self.lower_4vel(r0, th0, ph0, ut, ur, uth, uph)
 
-        self.initial_state = np.array([0., r0, th0, ph0, mu*u_t, mu*u_r, mu*u_th, mu*u_ph])
 
-        self.myE = -self.mu * u_t
-        self.myL = self.mu * u_ph
-        self.myQ = (self.mu * u_th) ** 2 + (np.cos(th0) ** 2) * (
-                (self.mya ** 2) * (self.mu ** 2 - self.myE ** 2) + (self.myL ** 2) / np.square(np.sin(th0)))
+        #TEST
+        print ut, self.dtdtau.subs({Metric.r:r0,
+                                    Metric.th:th0,
+                                    Metric.ph:th0,
+                                    Metric.a:0.,
+                                    self.E:-u_t,
+                                    self.L:u_ph})
+        self.initial_state = np.array([0., r0, th0, ph0, u_t, u_r, u_th, u_ph])
+
+        self.myE = -u_t
+        self.myL = u_ph
+        self.myQ = (u_th) ** 2 + (np.cos(th0) ** 2) * (
+                (self.mya ** 2) * (1. - self.myE ** 2) + (self.myL ** 2) / np.square(np.sin(th0)))
 
         # lambdify equations of motion
         fields = ['dtdtau', 'drdtau', 'dthdtau', 'dphdtau',
@@ -118,8 +126,7 @@ class EquationsOfMotions(Metric):
                                  getattr(self, field).subs({self.L: self.myL,
                                                             self.E: self.myE,
                                                             self.Q: self.myQ,
-                                                            Metric.a: mya,
-                                                            self.mu: mu})))
+                                                            Metric.a: mya})))
 
     current_state = np.zeros(8)
 
@@ -140,7 +147,7 @@ class EquationsOfMotions(Metric):
 
     def do_integration(self, final_time, number_of_outputs):
         taus = np.linspace(0., final_time, number_of_outputs)
-        solution = odeint(self.time_derivative, self.initial_state, taus)
+        solution = odeint(self.time_derivative, self.initial_state, taus,rtol=1.e-10)
         return solution
 
 
@@ -154,22 +161,30 @@ if __name__ == '__main__':
     eom = EquationsOfMotions(spin)
     #print eom.dpthdtau
     ti = 0.
-    ri = 100.
+    ri = 1e2
     thi = np.pi/2.
     phii = 0.
     pri = 0.
     pthi = 0.
     pphii = ri ** (-3 / 2)
-    eom.initialize(ri, thi, phii, pri, pthi, 5*ri ** (-3 / 2),mu=1.)
-    solution = eom.do_integration(3000.,100)
-    print solution[:,2]
+    eom.initialize(ri, thi, phii, pri, pthi, .4712*pphii)
+    tf = 10*2*np.pi*ri**(3./2)
+    print eom.myE, eom.myL, ri*ri*(ri**(-3./2))
+    solution = eom.do_integration(tf,5000)
+    print -solution[-1,4], solution[-1,7]
+
     ts = solution[:,0]
     rs = solution[:,1]
     phs = solution[:,3]
     ths = solution[:,2]
-    plt.plot(rs*np.cos(phs), rs*np.sin(phs))
+    twophi = np.linspace(0.,2*np.pi,100)
+    plt.plot(ts,phs)
+    plt.show()
+    plt.plot(rs*np.cos(phs), rs*np.sin(phs),linewidth=1)
+    plt.plot(6.*np.cos(twophi),6.*np.sin(twophi), linewidth=1)
+    plt.plot(2.*np.cos(twophi),2.*np.sin(twophi), linewidth=1)
     plt.axis('image')
-    plt.axis([-110, 110, -110, 110])
+    plt.axis([-ri*1.1, ri*1.1, -ri*1.1, ri*1.1])
     plt.show()
     #print eom.mu, eom.myE, eom.myL, eom.myQ
     #print eom.mydprdtau(ti, ri, thi, phii, -eom.myE, pri, pthi, pphii)
