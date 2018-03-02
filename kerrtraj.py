@@ -2,8 +2,9 @@ from __future__ import division
 import numpy as np
 from scipy.integrate import odeint
 import sympy as sym
+import matplotlib
+matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt
-
 sym.init_printing(use_unicode=True)
 
 
@@ -157,7 +158,7 @@ class EquationsOfMotions(Metric):
 
 
 if __name__ == '__main__':
-    spin = 0.
+    spin = .0
     eom = EquationsOfMotions(spin)
     #print eom.dpthdtau
     ti = 0.
@@ -167,19 +168,19 @@ if __name__ == '__main__':
     pri = 0.
     pthi = 0.
     pphii = ri ** (-3 / 2)
-    eom.initialize(ri, thi, phii, pri, pthi, .4712*pphii)
-    tf = 10*2*np.pi*ri**(3./2)
-    print eom.myE, eom.myL, ri*ri*(ri**(-3./2))
+    eom.initialize(ri, thi, phii, pri, pthi, .6*pphii)
+    tf = 1*2*np.pi*ri**(3./2)
+    #print eom.myE, eom.myL, ri*ri*(ri**(-3./2))
     solution = eom.do_integration(tf,5000)
-    print -solution[-1,4], solution[-1,7]
+    #print -solution[-1,4], solution[-1,7]
 
     ts = solution[:,0]
     rs = solution[:,1]
     phs = solution[:,3]
     ths = solution[:,2]
     twophi = np.linspace(0.,2*np.pi,100)
-    plt.plot(ts,phs)
-    plt.show()
+    #plt.plot(ts,phs%(2.*np.pi))
+    #plt.show()
     plt.plot(rs*np.cos(phs), rs*np.sin(phs),linewidth=1)
     plt.plot(6.*np.cos(twophi),6.*np.sin(twophi), linewidth=1)
     plt.plot(2.*np.cos(twophi),2.*np.sin(twophi), linewidth=1)
